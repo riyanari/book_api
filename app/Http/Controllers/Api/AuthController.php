@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
@@ -24,11 +25,10 @@ class AuthController extends Controller
             'password' => Hash::make($validated['password']),
         ]);
 
-        $token = $user->createToken('mobile')->plainTextToken;
+        event(new Registered($user));
 
         return response()->json([
-            'message' => 'Register berhasil',
-            'token' => $token,
+            'message' => 'Register berhasil. Silakan cek email untuk verifikasi akun.',
             'user' => $user,
         ], 201);
     }
@@ -45,6 +45,12 @@ class AuthController extends Controller
         if (! $user || ! Hash::check($validated['password'], $user->password)) {
             throw ValidationException::withMessages([
                 'email' => ['Email atau password salah.'],
+            ]);
+        }
+
+        if (! $user->hasVerifiedEmail()) {
+            throw ValidationException::withMessages([
+                'email' => ['Email belum diverifikasi. Silakan cek inbox Anda.'],
             ]);
         }
 
