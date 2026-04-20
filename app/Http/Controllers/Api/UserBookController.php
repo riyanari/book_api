@@ -3,47 +3,95 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\UserBook;
 use Illuminate\Http\Request;
 
 class UserBookController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index()
+    public function index(Request $request)
     {
-        //
+        $query = $request->user()
+            ->userBooks()
+            ->with(['book.categories'])
+            ->latest();
+
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+        if ($request->filled('category_id')) {
+            $categoryId = $request->category_id;
+
+            $query->whereHas('book.categories', function ($q) use ($categoryId) {
+                $q->where('categories.id', $categoryId);
+            });
+        }
+
+        return response()->json($query->get());
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(Request $request)
     {
-        //
+        $validated = $request->validate([
+            'book_id' => ['required', 'exists:books,id'],
+            'status' => ['required', 'in:owned,read,wishlist'],
+            'started_at' => ['nullable', 'date'],
+            'finished_at' => ['nullable', 'date'],
+            'rating' => ['nullable', 'integer', 'min:1', 'max:5'],
+            'note' => ['nullable', 'string'],
+        ]);
+
+        $userBook = UserBook::updateOrCreate(
+            [
+                'user_id' => $request->user()->id,
+                'book_id' => $validated['book_id'],
+            ],
+            [
+                'status' => $validated['status'],
+                'started_at' => $validated['started_at'] ?? null,
+                'finished_at' => $validated['finished_at'] ?? null,
+                'rating' => $validated['rating'] ?? null,
+                'note' => $validated['note'] ?? null,
+            ]
+        );
+
+        return response()->json($userBook->load(['book.categories']), 201);
     }
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
+    public function show(Request $request, UserBook $userBook)
     {
-        //
+        abort_if($userBook->user_id !== $request->user()->id, 403);
+
+        return response()->json(
+            $userBook->load(['book.categories', 'chapters.points'])
+        );
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
+    public function update(Request $request, UserBook $userBook)
     {
-        //
+        abort_if($userBook->user_id !== $request->user()->id, 403);
+
+        $validated = $request->validate([
+            'status' => ['sometimes', 'in:owned,read,wishlist'],
+            'started_at' => ['nullable', 'date'],
+            'finished_at' => ['nullable', 'date'],
+            'rating' => ['nullable', 'integer', 'min:1', 'max:5'],
+            'note' => ['nullable', 'string'],
+        ]);
+
+        $userBook->update($validated);
+
+        return response()->json($userBook->load(['book.categories']));
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
+    public function destroy(Request $request, UserBook $userBook)
     {
-        //
+        abort_if($userBook->user_id !== $request->user()->id, 403);
+
+        $userBook->delete();
+
+        return response()->json([
+            'message' => 'Buku dihapus dari koleksi',
+        ]);
     }
 }

@@ -13,13 +13,14 @@ return new class extends Migration
     {
         Schema::create('chapters', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('user_book_id')->constrained()->cascadeOnDelete();
+            $table->integer('chapter_number')->nullable();
+            $table->string('title');
+            $table->text('summary')->nullable();
             $table->timestamps();
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('chapters');

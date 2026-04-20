@@ -3,47 +3,66 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Chapter;
+use App\Models\UserBook;
 use Illuminate\Http\Request;
 
 class ChapterController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index()
+    public function index(Request $request, UserBook $userBook)
     {
-        //
+        abort_if($userBook->user_id !== $request->user()->id, 403);
+
+        return response()->json(
+            $userBook->chapters()->with('points')->orderBy('chapter_number')->get()
+        );
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
+    public function store(Request $request, UserBook $userBook)
     {
-        //
+        abort_if($userBook->user_id !== $request->user()->id, 403);
+
+        $validated = $request->validate([
+            'chapter_number' => ['nullable', 'integer'],
+            'title' => ['required', 'string', 'max:255'],
+            'summary' => ['nullable', 'string'],
+        ]);
+
+        $chapter = $userBook->chapters()->create($validated);
+
+        return response()->json($chapter, 201);
     }
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
+    public function show(Request $request, Chapter $chapter)
     {
-        //
+        abort_if($chapter->userBook->user_id !== $request->user()->id, 403);
+
+        return response()->json($chapter->load('points'));
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
+    public function update(Request $request, Chapter $chapter)
     {
-        //
+        abort_if($chapter->userBook->user_id !== $request->user()->id, 403);
+
+        $validated = $request->validate([
+            'chapter_number' => ['nullable', 'integer'],
+            'title' => ['sometimes', 'string', 'max:255'],
+            'summary' => ['nullable', 'string'],
+        ]);
+
+        $chapter->update($validated);
+
+        return response()->json($chapter);
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
+    public function destroy(Request $request, Chapter $chapter)
     {
-        //
+        abort_if($chapter->userBook->user_id !== $request->user()->id, 403);
+
+        $chapter->delete();
+
+        return response()->json([
+            'message' => 'Chapter dihapus',
+        ]);
     }
 }
